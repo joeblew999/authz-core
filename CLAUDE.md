@@ -396,10 +396,11 @@ Two components:
 
 **This repo does not deploy d1-manager. Treat it as a separate concern.**
 
-When you do want it (operator-side, not engine-side), the **recommended path is to
-fork it** rather than try to deploy upstream as-is:
+**Fork created**: https://github.com/joeblew999/d1-manager
 
-1. Fork to `github.com/joeblew999/d1-manager` (or `cf-d1-admin`).
+When ready to spin it up (operator-side, not engine-side):
+
+1. ✅ Fork at `github.com/joeblew999/d1-manager` (done).
 2. In the fork: strip the bits we don't want from `wrangler.toml` (R2 backups, the
    `BackupDO` Durable Object, `[ai]` binding, the cron trigger, the upstream-author's
    `[[routes]] pattern = "d1.adamic.tech"`). Set `workers_dev = true`, `name = "authz-admin"`.
