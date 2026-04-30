@@ -76,13 +76,13 @@ This Worker doesn't ship its own auth — it's identity-agnostic. The full deplo
 | `auth-better-worker` | [joeblew999/auth-service](https://github.com/joeblew999/auth-service) | Identity (Better Auth v1.5 + D1 + KV). Consumer calls `env.AUTH.fetch("/auth/api/get-session")` to get a `user.id`. |
 | `authz-worker` | this repo | Decisions. Consumer calls `env.AUTHZ.fetch("/check", {... subject_id: user.id})`. |
 | `authz-consumer-test` | `examples/` | Demo Worker proving the binding pattern works cross-language (TS → Rust). |
-| `d1-manager` (planned) | [joeblew999/d1-manager](https://github.com/joeblew999/d1-manager) | Account-wide D1 admin GUI with GitHub SSO via CF Access. |
+| `d1-manager` | [joeblew999/d1-manager](https://github.com/joeblew999/d1-manager) | **Deployed** at https://d1-manager.gedw99.workers.dev. Account-wide D1 admin GUI behind CF Access (GitHub OAuth). Forks-of-fork get the same operator-friendly mise tooling (cf:provision → cf:access:setup → secrets:put-cf → 10-deploy). |
 
 Phase 5 puts `remy-sport`'s Hono Worker on top: validates session via auth, fetches the snapshot (or makes per-mutation `/check` calls) via authz, returns the answer. See CLAUDE.md "Phase 5 integration sketch" for the wiring code.
 
 ## Out of scope on this branch
 
-- **Admin GUI.** Originally planned as a hand-rolled maud + Pico + Datastar SPA on `authz-worker`. Then planned as a deploy of [d1-manager](https://github.com/neverinfamous/d1-manager) gated behind CF Access / GitHub OAuth. **Now moved out of this repo entirely** — d1-manager is account-level ops infra (one deploy, one account-scoped API token, admins every D1 on the account), so it belongs in a separate ops repo or a one-off manual deploy. Until then, ops happen via `wrangler d1 execute`.
+- **Admin GUI** lives in a sibling repo, not here. We forked [d1-manager](https://github.com/neverinfamous/d1-manager) to [joeblew999/d1-manager](https://github.com/joeblew999/d1-manager) and deployed it as account-level ops infra at https://d1-manager.gedw99.workers.dev (behind CF Access / GitHub OAuth). It admins every D1 on the operator's account — `authz-store` and any other DB. Visit it directly; nothing in this repo deploys or maintains it.
 - **Loading authorization policies from D1.** `/check` accepts the DSL inline. Storing/retrieving from `authz_authorization_policy` is Phase 4 work.
 - **`/snapshot/:user_type/:user_id`** — the bulk permission map for downstream consumer caching. Phase 5.
 - **AuthZEN endpoints.** Not addressed here.
