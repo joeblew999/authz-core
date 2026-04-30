@@ -93,6 +93,21 @@ Each phase below has its own self-contained spec. Don't skip ahead — Phase 3 (
 - **Observability gotcha**: filter `console.log` JSON top-level keys directly (e.g. `event`, `outcome`, `tuple`) — *not* via `$metadata.message`, which only contains CF's auto-generated request line.
 - **CI:** [.github/workflows/cloudflare-ci.yml](.github/workflows/cloudflare-ci.yml) — `workflow_dispatch` only (off-but-ready). [.github/dependabot.yml](.github/dependabot.yml) — scans cargo + actions, `open-pull-requests-limit: 0` (off-but-ready).
 
+### Perf path / when to scale
+
+The architecture is naturally well-aligned with low-latency authz reads — most of the work is read-side and the inputs are stable.
+
+| Lever | What it buys | When to flip |
+|---|---|---|
+| **Model is stable.** Type system + DSL is parsed/compiled once per request today; can be cached `Arc<TypeSystem>` once we want to. | Resolver itself is fast — bottleneck is D1 reads, not engine work. | Already the default; revisit only if profiling shows model-parse cost. |
+| **`/snapshot` cached at the consumer.** Hono Worker fetches once at login, embeds in `/me`, React holds in context. | Per-render UI gating is zero-RTT — `if (snapshot.can_edit_event) {…}`. | Phase 5 — design choice already made. |
+| **D1 read replication.** Off today (`wrangler d1 info` shows `read_replication.mode: disabled`). One-flag flip. | Reads served from nearest region (~5ms instead of ~50ms cross-continent). Writes still go to primary. | When measurable traffic appears from a second continent. Pre-launch is too early. |
+| **D1 Sessions API.** Bookmark-based read-after-write consistency. | Use case: tuple write → immediate `/check` on the same request. | Only if integration shows we're hitting the rare "wrote, then read stale" race. Not on remy's expected hot path. |
+| **`/check` result cache** in `authz-worker`. CoreResolver supports an L2 cache (today wired to `noop_cache`). | Repeated identical checks within a TTL get an in-memory hit, skip D1 entirely. | After Phase 5 is live and we see the actual repeat-check pattern. |
+| **Snapshot pre-compute** (eventual). Re-derive on tuple write, store in `authz_snapshot` table, serve raw. | Login becomes a single-row D1 read. | Only if cold-snapshot latency becomes a UX issue. |
+
+**What remains genuinely unknown** (not solved by any of the above) is the **shape** of the snapshot for power-user accounts (federation-wide PLATFORM_ADMIN with thousands of objects). Likely answer is "wildcard the snapshot for that role", but worth measuring at integration time.
+
 ## Goal — Phase 1 (this session)
 
 Get this fork compiling for `wasm32-unknown-unknown` and deployed as a Cloudflare Worker. That's it. No D1, no GUI, no AuthZEN endpoints. Just `GET /health` returning `{"ok": true}` from a Worker linked against the engine, with an in-memory or stub `TupleReader`/`TupleWriter`.
