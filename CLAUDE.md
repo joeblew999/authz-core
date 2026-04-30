@@ -398,24 +398,40 @@ Two components:
 
 **Fork created**: https://github.com/joeblew999/d1-manager
 
-When ready to spin it up (operator-side, not engine-side):
+This fork is **account-level ops infra** — it admins every D1 on the
+`gedw99@gmail.com` account (this project's `authz-store`, plus `analytics-oltp`,
+`test-hono-db`, future remy-sport DBs, etc.). It is *not* an authz-core companion.
 
-1. ✅ Fork at `github.com/joeblew999/d1-manager` (done).
-2. In the fork: strip the bits we don't want from `wrangler.toml` (R2 backups, the
-   `BackupDO` Durable Object, `[ai]` binding, the cron trigger, the upstream-author's
-   `[[routes]] pattern = "d1.adamic.tech"`). Set `workers_dev = true`, `name = "authz-admin"`.
-3. Tag the fork — that's "v0.1 — gedw99 build". Pin all future deploys to that tag.
-4. Cloudflare Zero Trust: set up GitHub OAuth + Access App gating
-   `authz-admin.gedw99.workers.dev`.
-5. `wrangler secret put` the four secrets (`ACCOUNT_ID`, `API_KEY`, `TEAM_DOMAIN`,
-   `POLICY_AUD`), `npm run build && wrangler deploy` from the fork.
-6. From then on it admins every D1 on the account, including this project's `authz-store`.
+Worker name = repo name = `d1-manager`. Keeps the URL self-documenting and avoids
+bikeshedding.
+
+Minimal `wrangler.toml` diff against upstream:
+1. Remove the `[[routes]] pattern = "d1.adamic.tech"` block (their domain, not ours).
+2. Set `workers_dev = false` → `true` (so the deploy lands at
+   `d1-manager.gedw99.workers.dev` instead of needing a custom domain).
+3. Set `database_id` to the value from `wrangler d1 create d1-manager-metadata` (the
+   upstream config already uses the right `database_name`).
+
+Everything else stays as upstream ships it: R2 hourly backups, the `BackupDO`
+Durable Object, the `[ai]` binding, the cron trigger. R2 storage is sub-cent per
+month at our scale; rejecting these features was a false economy.
+
+Steps when ready to deploy:
+1. ✅ Fork at `github.com/joeblew999/d1-manager`.
+2. In the fork: apply the three-change diff above. Tag as `v0.1`.
+3. `wrangler r2 bucket create d1-manager-backups` (one-time CF resource).
+4. `wrangler d1 create d1-manager-metadata` (one-time), apply `worker/schema.sql`.
+5. Cloudflare Zero Trust: GitHub OAuth IdP + Access Application gating
+   `d1-manager.gedw99.workers.dev`. Copy the `POLICY_AUD` audience tag.
+6. CF API token (Account → D1: Edit). Copy `ACCOUNT_ID`.
+7. `wrangler secret put` for `ACCOUNT_ID`, `API_KEY`, `TEAM_DOMAIN`, `POLICY_AUD`.
+8. `npm run build && wrangler deploy` from the fork.
+9. From then on it admins every D1 on the account.
 
 Why fork rather than vendor/patch-on-deploy: the upstream `wrangler.toml` ships with
-external resource dependencies that drift between releases, and patching them in a
-downstream task means tracking those internals. Forking once + pinning is cleaner than
-sed-on-every-deploy. Cherry-pick upstream bumps when you want them, not when they
-break your config.
+external resource dependencies, and patching them in a downstream task means tracking
+those internals. Forking once + pinning is cleaner than sed-on-every-deploy. Cherry-pick
+upstream bumps when you want them, not when they break your config.
 
 Until that happens, ops on `authz-store` go through `mise run cf:d1:exec:{local,remote}`
 or `wrangler d1 execute` directly. No GUI, but no coupling either.
