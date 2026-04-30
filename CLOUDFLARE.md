@@ -76,7 +76,8 @@ This Worker doesn't ship its own auth — it's identity-agnostic. The full deplo
 | `auth-better-worker` | [joeblew999/auth-service](https://github.com/joeblew999/auth-service) | Identity (Better Auth v1.5 + D1 + KV). Consumer calls `env.AUTH.fetch("/auth/api/get-session")` to get a `user.id`. |
 | `authz-worker` | this repo | Decisions. Consumer calls `env.AUTHZ.fetch("/check", {... subject_id: user.id})`. |
 | `authz-consumer-test` | `examples/` | Demo Worker proving the binding pattern works cross-language (TS → Rust). |
-| `d1-manager` | [joeblew999/d1-manager](https://github.com/joeblew999/d1-manager) | **Deployed** at https://d1-manager.gedw99.workers.dev. Account-wide D1 admin GUI behind CF Access (GitHub OAuth). Forks-of-fork get the same operator-friendly mise tooling (cf:provision → cf:access:setup → secrets:put-cf → 10-deploy). |
+| `d1-manager` | [joeblew999/d1-manager](https://github.com/joeblew999/d1-manager) | **Deployed** at https://d1-manager.gedw99.workers.dev. Account-wide D1 admin GUI behind CF Access (GitHub OAuth). |
+| `kv-manager` | [joeblew999/kv-manager](https://github.com/joeblew999/kv-manager) | **Deployed** at https://kv-manager.gedw99.workers.dev. Account-wide KV admin GUI behind CF Access. Same overlay shape as `d1-manager` — `cf:provision` → `cf:access:setup` → `secrets:put-cf` → `10-deploy` → `prove:all`. Both forks share the operator's canonical fnox keys (`CLOUDFLARE_API_TOKEN`, `CF_ACCESS_GITHUB_IDP_ID`, etc.); only the per-app `*_POLICY_AUD` differs. |
 
 Phase 5 puts `remy-sport`'s Hono Worker on top: validates session via auth, fetches the snapshot (or makes per-mutation `/check` calls) via authz, returns the answer. See CLAUDE.md "Phase 5 integration sketch" for the wiring code.
 
