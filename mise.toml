@@ -138,6 +138,11 @@ run         = "scripts/validate-fixture.sh"
 description = "Shortcut: run vendor/pgauthz/matrix/simple_direct.yaml — the smoke baseline (4 assertions)."
 run         = "scripts/validate-fixture.sh vendor/pgauthz/matrix/simple_direct.yaml"
 
+[tasks."validate:biz"]
+description = "Phase 4 — run remy-sport-biz validation against deployed /check. Surfaces engine gaps as actionable notes for reshaping remy."
+depends     = ["biz:upstream:fetch"]
+run         = "node scripts/biz-validate.mjs"
+
 [tasks."validate:all"]
 description = "Run every vendored matrix YAML — expect failures on advanced features until Phase 4."
 run         = '''
@@ -200,6 +205,27 @@ mkdir -p vendor/pgauthz
 } > vendor/pgauthz/init.sql
 echo "fetched -> vendor/pgauthz/init.sql"
 echo "run: git diff vendor/pgauthz/init.sql"
+'''
+
+[tasks."biz:upstream:fetch"]
+description = "Refresh vendor/remy-sport-biz/data/seed/*.csv from the local sibling clone (../remy-sport-biz). Private repo — gitignored. Used by Phase 4 biz validation."
+run = '''
+set -e
+src="${REMY_BIZ_DIR:-../remy-sport-biz}/data/seed"
+if [ ! -d "$src" ]; then
+  echo "ERROR: remy-sport-biz seed dir not found at $src" >&2
+  echo "Clone the repo as a sibling, or set REMY_BIZ_DIR=/path/to/remy-sport-biz" >&2
+  exit 1
+fi
+mkdir -p vendor/remy-sport-biz/data/seed
+count=0
+for f in "$src"/*.csv "$src"/*.md; do
+  [ -e "$f" ] || continue
+  cp "$f" vendor/remy-sport-biz/data/seed/
+  echo "  $(basename "$f")"
+  count=$((count + 1))
+done
+echo "copied $count file(s) -> vendor/remy-sport-biz/data/seed/  (gitignored)"
 '''
 
 [tasks."cf:d1:upstream:fetch:fixtures"]

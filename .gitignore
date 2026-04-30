@@ -6,6 +6,11 @@ Cargo.lock
 .wrangler/
 crates/authz-worker/build/
 
+# remy-sport-biz seed data (sibling private repo). Refresh via:
+#   mise run biz:upstream:fetch
+# Don't commit — keeps private biz schema out of this repo.
+vendor/remy-sport-biz/
+
 # Editor / IDE
 .vscode/
 .idea/
