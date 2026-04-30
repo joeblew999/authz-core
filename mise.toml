@@ -127,6 +127,24 @@ run         = "cd crates/authz-worker && wrangler versions list"
 description = "Roll back to the previous version"
 run         = "cd crates/authz-worker && wrangler rollback"
 
+# ── cf: consumer test (proves cross-language service binding) ────────────────
+
+[tasks."cf:consumer:deploy"]
+description = "Deploy examples/authz-consumer-test (TS Worker that calls authz-worker via service binding)"
+run         = "cd examples/authz-consumer-test && wrangler deploy"
+
+[tasks."cf:consumer:probe"]
+description = "Probe the deployed consumer: /probe/health and /probe/tuple"
+run = '''
+set -e
+url="https://authz-consumer-test.{{env.CF_SUBDOMAIN}}.workers.dev"
+echo "== /probe/health (via service binding) =="
+curl -sf "$url/probe/health" | jq .
+echo
+echo "== /probe/tuple (POST/GET/DELETE round-trip via service binding) =="
+curl -sf "$url/probe/tuple" | jq .
+'''
+
 # ── cf: D1 ───────────────────────────────────────────────────────────────────
 
 [tasks."cf:d1:upstream:fetch"]

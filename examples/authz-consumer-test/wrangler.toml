@@ -1,0 +1,11 @@
+name               = "authz-consumer-test"
+main               = "src/index.ts"
+compatibility_date = "2026-04-01"
+workers_dev        = true
+
+# Service binding: cross-Worker dispatch with no network hop.
+# This proves that a non-Rust (TypeScript) Worker can call authz-worker
+# the same way as remy-sport's Hono Worker will in Phase 5.
+[[services]]
+binding = "AUTHZ"
+service = "authz-worker"
