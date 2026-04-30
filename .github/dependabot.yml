@@ -9,7 +9,7 @@ updates:
     schedule:
       interval: weekly
     target-branch: cloudflare
-    open-pull-requests-limit: 0
+    open-pull-requests-limit: 5
     labels: [dependencies, rust]
 
   # GitHub Actions versions used by .github/workflows/cloudflare-ci.yml
@@ -18,5 +18,5 @@ updates:
     schedule:
       interval: weekly
     target-branch: cloudflare
-    open-pull-requests-limit: 0
+    open-pull-requests-limit: 5
     labels: [dependencies, github-actions]

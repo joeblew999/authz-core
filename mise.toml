@@ -3,8 +3,8 @@ rust                 = "1.93"
 node                 = "24"
 jq                   = "1.8.1"
 yq                   = "latest"
-"npm:wrangler"       = "latest"
-"cargo:worker-build" = "latest"
+"npm:wrangler"       = "4.84.1"
+"cargo:worker-build" = "0.8.1"
 
 [env]
 CF_WORKER_NAME   = "authz-worker"

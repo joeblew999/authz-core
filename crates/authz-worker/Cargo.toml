@@ -9,7 +9,7 @@ crate-type = ["cdylib"]
 
 [dependencies]
 authz-core   = { path = "../.." }
-worker       = { version = "0.8.1", features = ["d1"] }
+worker       = { version = "=0.8.1", features = ["d1"] }
 serde        = { version = "1", features = ["derive"] }
 js-sys       = "0.3"
 async-trait  = "0.1"
