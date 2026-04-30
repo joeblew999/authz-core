@@ -1,3 +1,4 @@
+mod check;
 mod d1;
 
 use authz_core::traits::{Tuple, TupleFilter, TupleReader, TupleWriter};
@@ -93,6 +94,11 @@ async fn fetch(req: Request, env: Env, _ctx: Context) -> Result<Response> {
     if path == "/debug/tuple" {
         let store = D1TupleStore::new(env.d1("DB")?);
         return debug_tuple(req, &store).await;
+    }
+
+    if path == "/check" && method == Method::Post {
+        let store = D1TupleStore::new(env.d1("DB")?);
+        return check::handle(req, store).await;
     }
 
     let _ = method;

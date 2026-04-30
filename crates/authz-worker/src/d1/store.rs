@@ -1,14 +1,17 @@
+use std::sync::Arc;
+
 use authz_core::traits::Tuple;
 use serde::Deserialize;
 use worker::D1Database;
 
+#[derive(Clone)]
 pub struct D1TupleStore {
-    pub(crate) db: D1Database,
+    pub(crate) db: Arc<D1Database>,
 }
 
 impl D1TupleStore {
     pub fn new(db: D1Database) -> Self {
-        Self { db }
+        Self { db: Arc::new(db) }
     }
 }
 
