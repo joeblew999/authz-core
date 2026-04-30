@@ -76,7 +76,7 @@ Fresh session, just opened the repo? Do this in order:
 | **3 Part B** | ❌ moved out | d1-manager is account-level ops infra (admins every D1 on the account, account-scoped API token), not authz-core's concern. Deploy from a separate ops repo or one-off. See Phase 3 Part B section for the conclusion. | n/a — no longer in this repo's scope. |
 | **4 v1** | ✅ done | **Biz-model validation v1** — load remy-sport-biz CSVs as DSL (EVENT + PLATFORM types), seed tuples, run hand-crafted fixtures. | `mise run validate:biz` → 6/7 PASS, single failure is the predicted CAMP/MANAGE_DIVISIONS gap. |
 | **4 v2** | ⌛ next | Extend biz validation to **TEAM, PLAYER, ORG**, GUARDIAN logic, temporal `TEAM_PLAYER` expiry, full Phase-4 fixture table. | All cases from CLAUDE.md's Phase 4 fixture table covered (15+ assertions). |
-| **5** | ⌛ later | **Consumer integration** — `/check` and `/snapshot/:user_type/:user_id` HTTP endpoints, hooked from remy-sport's Hono Worker, with the React SPA gating UI off the snapshot. | React app at `remy-sport-design.pages.dev` correctly hides/shows buttons based on logged-in user's snapshot from `authz-worker`. |
+| **5** | ⌛ later | **Consumer integration** — `/check` and `/snapshot/:user_type/:user_id` HTTP endpoints, hooked from remy-sport's Hono Worker, with the React SPA gating UI off the snapshot. Also wires in [auth-service](https://github.com/joeblew999/auth-service) (Better Auth on a Worker — `auth-better-worker`) for identity. | React app at `remy-sport-design.pages.dev` correctly hides/shows buttons based on logged-in user's snapshot from `authz-worker`, with auth from `auth-better-worker`. |
 
 Each phase below has its own self-contained spec. Don't skip ahead — Phase 3 (admin) assumes Phase 2 (D1); Phase 4 (biz validation) assumes Phase 2; Phase 5 (consumer integration) assumes Phase 4.
 
@@ -92,6 +92,53 @@ Each phase below has its own self-contained spec. Don't skip ahead — Phase 3 (
 - **Vendored upstream:** [vendor/pgauthz/init.sql](vendor/pgauthz/init.sql) (schema source-of-truth), [vendor/pgauthz/matrix/](vendor/pgauthz/matrix/) (17 fixture YAMLs). Provenance + refresh in [vendor/README.md](vendor/README.md).
 - **Observability gotcha**: filter `console.log` JSON top-level keys directly (e.g. `event`, `outcome`, `tuple`) — *not* via `$metadata.message`, which only contains CF's auto-generated request line.
 - **CI:** [.github/workflows/cloudflare-ci.yml](.github/workflows/cloudflare-ci.yml) — `workflow_dispatch` only (off-but-ready). [.github/dependabot.yml](.github/dependabot.yml) — scans cargo + actions, `open-pull-requests-limit: 0` (off-but-ready).
+
+### Phase 5 integration sketch — auth + authz composition
+
+Phase 5 wires three Workers together via service bindings (no public network hops between them — all in-isolate fetch dispatch).
+
+```
+                  ┌────────────────────────────┐
+                  │ remy-sport Hono Worker     │ ← consumer / orchestrator
+                  └──────┬──────────────┬──────┘
+        env.AUTH.fetch() │              │ env.AUTHZ.fetch()
+                         ▼              ▼
+   ┌─────────────────────────┐  ┌──────────────────────────┐
+   │ auth-better-worker      │  │ authz-worker (this repo) │
+   │ Better Auth v1.5        │  │ engine + D1 tuples       │
+   │ joeblew999/auth-service │  │                          │
+   │                         │  │                          │
+   │ /auth/api/get-session   │  │ POST /check              │
+   │ /auth/api/organization/ │  │ GET  /snapshot/:t/:id    │
+   │   get-active-member     │  │                          │
+   └─────────────────────────┘  └──────────────────────────┘
+```
+
+Pattern (TypeScript inside Hono Worker):
+
+```ts
+// 1. Identity from auth-service
+const sess = await env.AUTH.fetch("https://auth/auth/api/get-session", { headers: req.headers });
+const user = (await sess.json())?.user;
+if (!user) return new Response("unauthorized", { status: 401 });
+
+// 2. Decision from authz-worker
+const dec = await env.AUTHZ.fetch("https://authz/check", {
+  method: "POST",
+  headers: { "content-type": "application/json" },
+  body: JSON.stringify({
+    model, object_type, object_id, relation,
+    subject_type: "user", subject_id: user.id,
+  }),
+});
+```
+
+Org/role context: `get-active-member` returns role-based org membership. The Hono Worker can map this onto PLATFORM-type tuples (`ANY_ORGANIZER`, `PLATFORM_ADMIN`) without persisting auth identity in `authz-store` — derived on the fly per request.
+
+Cross-repo concern split:
+- **auth-service** (Better Auth Worker) owns: sessions, OAuth, magic links, password reset, email verification.
+- **authz-worker** (this repo) owns: tuples, DSL, decisions. Identity-agnostic — takes any string `subject_id`.
+- **Hono Worker** owns: composition. Both service bindings, request orchestration, snapshot caching.
 
 ### Perf path / when to scale
 

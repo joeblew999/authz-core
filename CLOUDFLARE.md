@@ -67,6 +67,19 @@ Pattern is the [two-way-mirror principle](docs/tools.md): every validation failu
   line).
 - Live tail: `mise run cf:tail`. Dashboard: `mise run cf:logs:dashboard`.
 
+## Sibling Workers (composition story)
+
+This Worker doesn't ship its own auth — it's identity-agnostic. The full deployment slots together via Cloudflare service bindings:
+
+| Worker | Repo | Purpose |
+|---|---|---|
+| `auth-better-worker` | [joeblew999/auth-service](https://github.com/joeblew999/auth-service) | Identity (Better Auth v1.5 + D1 + KV). Consumer calls `env.AUTH.fetch("/auth/api/get-session")` to get a `user.id`. |
+| `authz-worker` | this repo | Decisions. Consumer calls `env.AUTHZ.fetch("/check", {... subject_id: user.id})`. |
+| `authz-consumer-test` | `examples/` | Demo Worker proving the binding pattern works cross-language (TS → Rust). |
+| `d1-manager` (planned) | [joeblew999/d1-manager](https://github.com/joeblew999/d1-manager) | Account-wide D1 admin GUI with GitHub SSO via CF Access. |
+
+Phase 5 puts `remy-sport`'s Hono Worker on top: validates session via auth, fetches the snapshot (or makes per-mutation `/check` calls) via authz, returns the answer. See CLAUDE.md "Phase 5 integration sketch" for the wiring code.
+
 ## Out of scope on this branch
 
 - **Admin GUI.** Originally planned as a hand-rolled maud + Pico + Datastar SPA on `authz-worker`. Then planned as a deploy of [d1-manager](https://github.com/neverinfamous/d1-manager) gated behind CF Access / GitHub OAuth. **Now moved out of this repo entirely** — d1-manager is account-level ops infra (one deploy, one account-scoped API token, admins every D1 on the account), so it belongs in a separate ops repo or a one-off manual deploy. Until then, ops happen via `wrangler d1 execute`.
