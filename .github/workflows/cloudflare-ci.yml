@@ -1,0 +1,64 @@
+name: cloudflare-ci
+
+# Disabled for now — only manually triggerable from the Actions tab.
+# When ready to enable on push, add:
+#   push:
+#     branches: [cloudflare]
+on:
+  workflow_dispatch:
+
+jobs:
+  build:
+    name: build (mise)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Install mise
+        uses: jdx/mise-action@v4
+        with:
+          experimental: true
+
+      - name: Cache cargo
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            target
+          key: ${{ runner.os }}-cf-cargo-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-cf-cargo-
+
+      - name: setup (wasm32 target)
+        run: mise run setup
+
+      - name: check (native)
+        run: mise run check
+
+      - name: check:wasm (engine on wasm32)
+        run: mise run check:wasm
+
+      - name: worker:check (worker on wasm32)
+        run: mise run worker:check
+
+      - name: worker:build (worker-build artifact)
+        run: mise run worker:build
+
+  # Deploy is wired but commented out — flip on once CLOUDFLARE_API_TOKEN secret is set.
+  #
+  # deploy:
+  #   name: deploy
+  #   needs: build
+  #   if: github.ref == 'refs/heads/cloudflare'
+  #   runs-on: ubuntu-latest
+  #   env:
+  #     CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+  #   steps:
+  #     - uses: actions/checkout@v5
+  #     - uses: jdx/mise-action@v4
+  #       with:
+  #         experimental: true
+  #     - run: mise run setup
+  #     - run: mise run cf:deploy
+  #     - run: mise run worker:health:remote

@@ -1,0 +1,14 @@
+name                = "authz-worker"
+main                = "build/worker/shim.mjs"
+compatibility_date  = "2026-04-01"
+workers_dev         = true
+
+[build]
+command = "worker-build --release"
+
+[[d1_databases]]
+binding        = "DB"
+database_name  = "authz-store"
+database_id    = "822c5996-98dd-4d10-a77d-805f870d92e6"
+migrations_dir = "../../migrations"
+

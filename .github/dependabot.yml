@@ -1,0 +1,22 @@
+version: 2
+
+# Off-but-ready: open-pull-requests-limit is 0 so Dependabot scans the repo
+# but opens zero PRs. Raise the limit (e.g. 5) on each ecosystem to enable.
+updates:
+  # Rust deps — covers the workspace root crate (engine) and crates/authz-worker.
+  - package-ecosystem: cargo
+    directory: /
+    schedule:
+      interval: weekly
+    target-branch: cloudflare
+    open-pull-requests-limit: 0
+    labels: [dependencies, rust]
+
+  # GitHub Actions versions used by .github/workflows/cloudflare-ci.yml
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+    target-branch: cloudflare
+    open-pull-requests-limit: 0
+    labels: [dependencies, github-actions]

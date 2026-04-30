@@ -1,0 +1,198 @@
+[tools]
+rust                 = "1.93"
+node                 = "24"
+jq                   = "1.8.1"
+"npm:wrangler"       = "latest"
+"cargo:worker-build" = "latest"
+
+[env]
+CF_WORKER_NAME   = "authz-worker"
+CF_SUBDOMAIN     = "gedw99"
+CF_DEPLOY_URL    = "https://authz-worker.gedw99.workers.dev"
+DEV_URL          = "http://localhost:8787"
+GITHUB_REPO_URL  = "https://github.com/joeblew999/authz-core"
+CF_D1_NAME       = "authz-store"
+PGAUTHZ_INIT_URL = "https://raw.githubusercontent.com/zvectorlabs/pgauthz/main/crates/pgauthz/sql/init.sql"
+
+# ── Setup ────────────────────────────────────────────────────────────────────
+
+[tasks.setup]
+description = "Add wasm32 target (worker-build + wrangler are managed by mise tools)"
+depends     = ["rust:wasm-target"]
+
+[tasks."rust:wasm-target"]
+description = "Add wasm32-unknown-unknown target"
+run         = "rustup target add wasm32-unknown-unknown"
+
+# ── Engine (root crate) ──────────────────────────────────────────────────────
+
+[tasks.fmt]
+description = "Format code"
+run         = "cargo fmt --all"
+
+[tasks."fmt:check"]
+description = "Check formatting"
+run         = "cargo fmt --all -- --check"
+
+[tasks.check]
+description = "cargo check (native target)"
+sources     = ["src/**/*.rs", "Cargo.toml"]
+run         = "cargo check"
+
+[tasks."check:wasm"]
+description = "cargo check for wasm32-unknown-unknown (CF Workers target)"
+depends     = ["rust:wasm-target"]
+sources     = ["src/**/*.rs", "Cargo.toml"]
+run         = "cargo check --target wasm32-unknown-unknown"
+
+[tasks.clippy]
+description = "Run clippy with warnings as errors"
+run         = "cargo clippy -- -D warnings"
+
+[tasks.test]
+description = "Run all tests"
+run         = "cargo test"
+
+[tasks.ci]
+description = "fmt:check + check + test + clippy"
+depends     = ["fmt:check", "check", "test", "clippy"]
+
+# ── Worker (crates/authz-worker) ─────────────────────────────────────────────
+
+[tasks."worker:check"]
+description = "cargo check the worker crate against wasm32"
+depends     = ["rust:wasm-target"]
+run         = "cargo check -p authz-worker --target wasm32-unknown-unknown"
+
+[tasks."worker:build"]
+description = "Build worker .wasm artifact via worker-build"
+run         = "cd crates/authz-worker && worker-build --release"
+
+[tasks."worker:dev"]
+description = "Run worker locally with wrangler dev (port 8787)"
+depends     = ["setup"]
+run         = "cd crates/authz-worker && wrangler dev"
+
+[tasks."worker:health"]
+description = "Curl GET /health on local dev server"
+run         = "curl -sf {{env.DEV_URL}}/health | jq ."
+
+[tasks."worker:health:remote"]
+description = "Curl GET /health on deployed worker"
+run         = "curl -sf {{env.CF_DEPLOY_URL}}/health | jq ."
+
+# ── cf: deploy ───────────────────────────────────────────────────────────────
+
+[tasks."cf:deploy"]
+description = "Deploy worker to Cloudflare"
+depends     = ["worker:build"]
+run         = "cd crates/authz-worker && wrangler deploy"
+
+[tasks."cf:tail"]
+description = "Tail live worker logs"
+run         = "cd crates/authz-worker && wrangler tail"
+
+[tasks."cf:dev:remote"]
+description = "Run worker locally but against REMOTE bindings (catches prod-only binding errors)"
+run         = "cd crates/authz-worker && wrangler dev --remote"
+
+[tasks."cf:verify"]
+description = "Static + introspective binding verification (no deploy). Run before merging changes that touch wrangler.toml."
+depends     = ["worker:build"]
+run = '''
+set -e
+echo "== whoami =="
+wrangler whoami
+echo
+echo "== deploy --dry-run (validates wrangler.toml + binding resolution) =="
+cd crates/authz-worker && wrangler deploy --dry-run --outdir build/dryrun
+echo
+echo "== d1 info =="
+wrangler d1 info {{env.CF_D1_NAME}}
+'''
+
+[tasks."cf:whoami"]
+description = "Show current Cloudflare auth info"
+run         = "wrangler whoami"
+
+[tasks."cf:login"]
+description = "Authenticate wrangler with Cloudflare account"
+run         = "wrangler login"
+
+[tasks."cf:versions:list"]
+description = "List deployed versions"
+run         = "cd crates/authz-worker && wrangler versions list"
+
+[tasks."cf:rollback"]
+description = "Roll back to the previous version"
+run         = "cd crates/authz-worker && wrangler rollback"
+
+# ── cf: D1 ───────────────────────────────────────────────────────────────────
+
+[tasks."cf:d1:upstream:fetch"]
+description = "Refresh vendor/pgauthz/init.sql from upstream. Then `git diff` to see drift."
+run = '''
+set -e
+mkdir -p vendor/pgauthz
+{
+  echo "-- Vendored verbatim from pgauthz upstream."
+  echo "-- Source: {{env.PGAUTHZ_INIT_URL}}"
+  echo "--"
+  echo "-- DO NOT EDIT. Refresh with:  mise run cf:d1:upstream:fetch"
+  echo "-- The Postgres -> SQLite ported version lives at: migrations/0001_authz_init.sql"
+  echo ""
+  curl -fsSL "{{env.PGAUTHZ_INIT_URL}}"
+} > vendor/pgauthz/init.sql
+echo "fetched -> vendor/pgauthz/init.sql"
+echo "run: git diff vendor/pgauthz/init.sql"
+'''
+
+[tasks."cf:d1:upstream:fetch:fixtures"]
+description = "Refresh vendor/pgauthz/matrix/*.yaml from upstream tests/matrix. Used by Phase 4."
+run = '''
+set -e
+mkdir -p vendor/pgauthz/matrix
+api="https://api.github.com/repos/zvectorlabs/pgauthz/contents/crates/pgauthz/tests/matrix"
+files=$(curl -fsSL "$api" | jq -r '.[] | select(.name | endswith(".yaml")) | "\(.name)\t\(.download_url)"')
+count=0
+while IFS=$'\t' read -r name url; do
+  [ -z "$name" ] && continue
+  curl -fsSL "$url" -o "vendor/pgauthz/matrix/$name"
+  count=$((count + 1))
+  echo "  $name"
+done <<< "$files"
+echo "fetched $count fixture(s) -> vendor/pgauthz/matrix/"
+echo "run: git status vendor/pgauthz/matrix/"
+'''
+
+[tasks."cf:d1:create"]
+description = "Create the D1 database (one-time). Paste the database_id into crates/authz-worker/wrangler.toml."
+run         = "cd crates/authz-worker && wrangler d1 create {{env.CF_D1_NAME}}"
+
+[tasks."cf:d1:list"]
+description = "List D1 databases on the active CF account"
+run         = "wrangler d1 list"
+
+[tasks."cf:d1:info"]
+description = "Show info (size, row counts) for the configured D1 database"
+run         = "wrangler d1 info {{env.CF_D1_NAME}}"
+
+[tasks."cf:d1:migrations:apply"]
+description = "Apply pending migrations to the local D1 (wrangler dev)"
+run         = "cd crates/authz-worker && wrangler d1 migrations apply {{env.CF_D1_NAME}} --local"
+
+[tasks."cf:d1:migrations:apply:remote"]
+description = "Apply pending migrations to the deployed D1"
+run         = "cd crates/authz-worker && wrangler d1 migrations apply {{env.CF_D1_NAME}} --remote"
+
+[tasks."cf:d1:migrations:list"]
+description = "List migration status (local)"
+run         = "cd crates/authz-worker && wrangler d1 migrations list {{env.CF_D1_NAME}} --local"
+
+[tasks."cf:d1:exec:local"]
+description = "Run a SQL statement against the local D1. Usage: mise run cf:d1:exec:local -- 'SELECT 1'"
+run         = "cd crates/authz-worker && wrangler d1 execute {{env.CF_D1_NAME}} --local --command"
+
+[tasks."cf:d1:exec:remote"]
+description = "Run a SQL statement against the deployed D1"
+run         = "cd crates/authz-worker && wrangler d1 execute {{env.CF_D1_NAME}} --remote --command"

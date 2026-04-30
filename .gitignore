@@ -2,6 +2,10 @@
 /target/
 Cargo.lock
 
+# Cloudflare Workers — local state and build artifacts
+.wrangler/
+crates/authz-worker/build/
+
 # Editor / IDE
 .vscode/
 .idea/
