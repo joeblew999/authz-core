@@ -396,15 +396,25 @@ Two components:
 
 **This repo does not deploy d1-manager. Treat it as a separate concern.**
 
-When you do want it (operator-side, not engine-side):
-1. `git clone https://github.com/neverinfamous/d1-manager` somewhere outside this repo.
-2. Pin to a release tag.
-3. Edit its `wrangler.toml` for your account: rename to `authz-admin` (or whatever),
-   replace the custom-domain `[[routes]]` with `workers_dev = true`, set your metadata
-   D1's id, leave R2/DO/AI/cron alone (or strip them — your call).
-4. Cloudflare Zero Trust: set up GitHub OAuth + Access App gating the deployed URL.
-5. `wrangler secret put` the four secrets, `npm run build && wrangler deploy`.
+When you do want it (operator-side, not engine-side), the **recommended path is to
+fork it** rather than try to deploy upstream as-is:
+
+1. Fork to `github.com/joeblew999/d1-manager` (or `cf-d1-admin`).
+2. In the fork: strip the bits we don't want from `wrangler.toml` (R2 backups, the
+   `BackupDO` Durable Object, `[ai]` binding, the cron trigger, the upstream-author's
+   `[[routes]] pattern = "d1.adamic.tech"`). Set `workers_dev = true`, `name = "authz-admin"`.
+3. Tag the fork — that's "v0.1 — gedw99 build". Pin all future deploys to that tag.
+4. Cloudflare Zero Trust: set up GitHub OAuth + Access App gating
+   `authz-admin.gedw99.workers.dev`.
+5. `wrangler secret put` the four secrets (`ACCOUNT_ID`, `API_KEY`, `TEAM_DOMAIN`,
+   `POLICY_AUD`), `npm run build && wrangler deploy` from the fork.
 6. From then on it admins every D1 on the account, including this project's `authz-store`.
+
+Why fork rather than vendor/patch-on-deploy: the upstream `wrangler.toml` ships with
+external resource dependencies that drift between releases, and patching them in a
+downstream task means tracking those internals. Forking once + pinning is cleaner than
+sed-on-every-deploy. Cherry-pick upstream bumps when you want them, not when they
+break your config.
 
 Until that happens, ops on `authz-store` go through `mise run cf:d1:exec:{local,remote}`
 or `wrangler d1 execute` directly. No GUI, but no coupling either.
