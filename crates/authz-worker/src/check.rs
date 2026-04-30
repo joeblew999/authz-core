@@ -100,9 +100,39 @@ pub async fn handle(mut req: Request, store: D1TupleStore) -> Result<Response> {
     request.context = body.context;
     request.contextual_tuples = body.contextual_tuples.into_iter().map(Into::into).collect();
 
+    let log_subject = format!(
+        "{}:{}#{}@{}:{}",
+        request.object_type,
+        request.object_id,
+        request.relation,
+        request.subject_type,
+        request.subject_id,
+    );
+
     match resolver.resolve_check(request).await {
-        Ok(result) => Response::from_json(&check_result_to_json(&result)),
+        Ok(result) => {
+            let outcome = match &result {
+                CheckResult::Allowed => "Allowed",
+                CheckResult::Denied => "Denied",
+                CheckResult::ConditionRequired(_) => "ConditionRequired",
+            };
+            crate::log::event(
+                "check",
+                serde_json::json!({
+                    "tuple": log_subject,
+                    "outcome": outcome,
+                }),
+            );
+            Response::from_json(&check_result_to_json(&result))
+        }
         Err(e) => {
+            crate::log::event(
+                "check_error",
+                serde_json::json!({
+                    "tuple": log_subject,
+                    "error": format!("{e}"),
+                }),
+            );
             let mut r = Response::from_json(&serde_json::json!({
                 "error": format!("{e}")
             }))?;

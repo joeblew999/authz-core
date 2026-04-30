@@ -2,6 +2,7 @@
 rust                 = "1.93"
 node                 = "24"
 jq                   = "1.8.1"
+yq                   = "latest"
 "npm:wrangler"       = "latest"
 "cargo:worker-build" = "latest"
 
@@ -126,6 +127,42 @@ run         = "cd crates/authz-worker && wrangler versions list"
 [tasks."cf:rollback"]
 description = "Roll back to the previous version"
 run         = "cd crates/authz-worker && wrangler rollback"
+
+# ── Fixture validation against deployed Worker ───────────────────────────────
+
+[tasks."validate:fixture"]
+description = "Run one vendored pgauthz matrix YAML against the deployed /check. Usage: mise run validate:fixture vendor/pgauthz/matrix/simple_direct.yaml"
+run         = "scripts/validate-fixture.sh"
+
+[tasks."validate:simple-direct"]
+description = "Shortcut: run vendor/pgauthz/matrix/simple_direct.yaml — the smoke baseline (4 assertions)."
+run         = "scripts/validate-fixture.sh vendor/pgauthz/matrix/simple_direct.yaml"
+
+[tasks."validate:all"]
+description = "Run every vendored matrix YAML — expect failures on advanced features until Phase 4."
+run         = '''
+set -e
+fail_count=0
+for f in vendor/pgauthz/matrix/*.yaml; do
+  echo
+  if ! scripts/validate-fixture.sh "$f"; then
+    fail_count=$((fail_count + 1))
+  fi
+done
+echo
+echo "==== fixtures with failures: $fail_count ===="
+[ $fail_count -eq 0 ]
+'''
+
+# ── Workers Observability ────────────────────────────────────────────────────
+
+[tasks."cf:logs:tail"]
+description = "Stream live worker logs (alias of cf:tail)"
+run         = "cd crates/authz-worker && wrangler tail"
+
+[tasks."cf:logs:dashboard"]
+description = "Open the Workers Observability log explorer in the browser"
+run         = "open 'https://dash.cloudflare.com/?to=/:account/workers/services/view/authz-worker/production/observability'"
 
 # ── cf: consumer test (proves cross-language service binding) ────────────────
 

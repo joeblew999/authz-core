@@ -1,5 +1,6 @@
 mod check;
 mod d1;
+mod log;
 
 use authz_core::traits::{Tuple, TupleFilter, TupleReader, TupleWriter};
 use serde::Deserialize;
@@ -86,6 +87,14 @@ async fn fetch(req: Request, env: Env, _ctx: Context) -> Result<Response> {
     let url = req.url()?;
     let path = url.path().to_string();
     let method = req.method();
+
+    log::event(
+        "request",
+        serde_json::json!({
+            "method": format!("{method:?}"),
+            "path": path,
+        }),
+    );
 
     if path == "/health" {
         return Response::from_json(&serde_json::json!({ "ok": true }));

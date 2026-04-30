@@ -6,6 +6,13 @@ workers_dev         = true
 [build]
 command = "worker-build --release"
 
+# Workers Observability — enables the dashboard log explorer.
+# Inspect via: mise run cf:logs:query  (uses the Cloudflare Observability MCP)
+# or via:      Cloudflare Dashboard -> Workers -> authz-worker -> Logs
+[observability]
+enabled = true
+head_sampling_rate = 1   # keep 100% in dev; lower for prod traffic
+
 [[d1_databases]]
 binding        = "DB"
 database_name  = "authz-store"
