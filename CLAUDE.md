@@ -72,17 +72,23 @@ Fresh session, just opened the repo? Do this in order:
 |---|---|---|---|
 | **1** | ✅ done | Worker compiles for wasm32, deploys to CF, `/health` returns 200. Engine wired to **in-memory/stub store**. | `mise run worker:health:remote` → `{"ok": true}` |
 | **2** | ✅ done | Replace stub with **D1-backed `TupleReader`/`TupleWriter`**, schema ported from pgauthz, smoke-test round-trips a tuple. | `/debug/tuple` POST→GET→DELETE round-trips against deployed D1. |
-| **3** | ⏳ next | **Admin GUI** at `/admin/*` — maud + Pico + Datastar, CRUD on tuples, schema view, check sandbox. | Deployed `/admin/tuples` renders the list. |
-| **4** | ⌛ later | **Biz-model validation** — load remy-sport-biz CSVs as DSL, materialise seed tuples, run real check fixtures. Empirical confirmation the engine handles the biz model end-to-end. | All check fixtures in `tests/biz_check.rs` pass against the deployed Worker. |
+| **3 Part A** | ✅ done | `POST /check` runs the engine over D1 tuples — load-bearing for downstream consumers. | `mise run validate:simple-direct` → 4/4 PASS against deployed Worker. |
+| **3 Part B** | ⏳ deferred | Deploy [d1-manager](https://github.com/neverinfamous/d1-manager) as `authz-admin` (gated by CF Access / GitHub OAuth). | Browser: GitHub login → see `authz-store` admin. |
+| **4** | ⌛ next | **Biz-model validation** — load remy-sport-biz CSVs as DSL, materialise seed tuples, run real check fixtures. Empirical confirmation the engine handles the biz model end-to-end. | All check fixtures in `tests/biz_check.rs` pass against the deployed Worker. |
 | **5** | ⌛ later | **Consumer integration** — `/check` and `/snapshot/:user_type/:user_id` HTTP endpoints, hooked from remy-sport's Hono Worker, with the React SPA gating UI off the snapshot. | React app at `remy-sport-design.pages.dev` correctly hides/shows buttons based on logged-in user's snapshot from `authz-worker`. |
 
 Each phase below has its own self-contained spec. Don't skip ahead — Phase 3 (admin) assumes Phase 2 (D1); Phase 4 (biz validation) assumes Phase 2; Phase 5 (consumer integration) assumes Phase 4.
 
+> External-readable summary lives in [CLOUDFLARE.md](CLOUDFLARE.md). Keep both files honest.
+
 ### Current state (live)
 
-- **Worker:** `authz-worker` deployed at https://authz-worker.gedw99.workers.dev (workers-rs `worker = "0.8.1"`, `compatibility_date = "2026-04-01"`)
-- **D1:** `authz-store` (id `822c5996-98dd-4d10-a77d-805f870d92e6`), schema in [migrations/0001_authz_init.sql](migrations/0001_authz_init.sql), bound as `env.DB`
-- **Vendored upstream:** [vendor/pgauthz/init.sql](vendor/pgauthz/init.sql) (schema source-of-truth), [vendor/pgauthz/matrix/](vendor/pgauthz/matrix/) (17 fixture YAMLs ready for Phase 4). Provenance + refresh in [vendor/README.md](vendor/README.md).
+- **Worker:** `authz-worker` deployed at https://authz-worker.gedw99.workers.dev — `/health`, `/check`, `/debug/tuple`. workers-rs `worker = "0.8.1"`, `compatibility_date = "2026-04-01"`, `[observability] enabled = true`.
+- **D1:** `authz-store` (id `822c5996-98dd-4d10-a77d-805f870d92e6`), schema in [migrations/0001_authz_init.sql](migrations/0001_authz_init.sql), bound as `env.DB`.
+- **Engine coverage** (`mise run validate:all` against the deployed `/check`): **13 of 17 vendored matrix fixtures clean.** Failures concentrated in CEL conditions, temporal relations, and a few set-op edge cases — all known/expected.
+- **Service binding proven**: `examples/authz-consumer-test/` (TS) calls our Rust Worker via `env.AUTHZ.fetch(req)`. Same pattern remy-sport's Hono Worker uses in Phase 5.
+- **Vendored upstream:** [vendor/pgauthz/init.sql](vendor/pgauthz/init.sql) (schema source-of-truth), [vendor/pgauthz/matrix/](vendor/pgauthz/matrix/) (17 fixture YAMLs). Provenance + refresh in [vendor/README.md](vendor/README.md).
+- **Observability gotcha**: filter `console.log` JSON top-level keys directly (e.g. `event`, `outcome`, `tuple`) — *not* via `$metadata.message`, which only contains CF's auto-generated request line.
 - **CI:** [.github/workflows/cloudflare-ci.yml](.github/workflows/cloudflare-ci.yml) — `workflow_dispatch` only (off-but-ready). [.github/dependabot.yml](.github/dependabot.yml) — scans cargo + actions, `open-pull-requests-limit: 0` (off-but-ready).
 
 ## Goal — Phase 1 (this session)
