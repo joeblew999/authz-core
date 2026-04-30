@@ -28,6 +28,7 @@ for anyone reviewing it.
 - ✅ **Engine over D1.** `POST /check` accepts a DSL model + check params, builds `CoreResolver::new(D1TupleStore, StaticPolicyProvider)`, calls `resolve_check`, returns `Allowed`/`Denied`/`ConditionRequired` as JSON.
 - ✅ **Cross-language service binding.** Verified via the TS consumer Worker — `env.AUTHZ.fetch(req)` from a JS/TS Worker into our Rust Worker is wire-compatible HTTP, no network hop.
 - ✅ **Fixture-driven validation** (`scripts/validate-fixture.sh` + `mise run validate:all`). Reads any pgauthz matrix YAML, drives setup tuples + assertions against the deployed `/check`. Currently **13 of 17 fixtures clean.**
+- ✅ **Biz-model validation v1** (`scripts/biz-validate.mjs` + `mise run validate:biz`). Reads remy-sport-biz seed CSVs, generates the DSL inline, derives tuples, runs hand-crafted assertions. **6 of 7 fixtures pass** for the EVENT + PLATFORM subset. The one failure exposed an actionable design choice for the consumer (split `EVENT` into typed variants instead of conditioning by subtype) — see "Findings" below.
 
 ## What doesn't work yet
 
@@ -41,6 +42,14 @@ The 4 fixtures with assertion failures hit engine features that haven't been wir
 | `setops_precedence.yaml`          | 15 / 20 | Edge cases in mixed-precedence set operations |
 
 Plus two YAMLs (`expand_semantics`, `list_subjects_semantics`) have no `Check`-type assertions — they test other operations the runner currently skips.
+
+## Findings (from biz validation)
+
+| # | Symptom | Engine impact | Resolution path |
+|---|---|---|---|
+| 1 | `MANAGE_DIVISIONS` on `evt_003` (CAMP) returns Allowed when biz model says it should be denied (action only valid on TOURNAMENT/LEAGUE/SHOWCASE). | None — engine doesn't know about event subtypes; the biz model used CEL in CLAUDE.md's plan, but CEL coverage in the matrix is partial. | **Biz-side**: split `EVENT` into `tournament`/`league`/`showcase`/`camp` types in remy-sport-biz so the `manage_divisions` permission only exists on the first three. No CEL needed; simpler reasoning. |
+
+Pattern is the [two-way-mirror principle](docs/tools.md): every validation failure is either an engine gap (file upstream) or a biz-model translation gap (reshape the consumer before code is written). v1 surfaced the latter.
 
 ## Runtime knobs and conventions
 
