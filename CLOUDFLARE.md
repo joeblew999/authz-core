@@ -69,7 +69,7 @@ Pattern is the [two-way-mirror principle](docs/tools.md): every validation failu
 
 ## Out of scope on this branch
 
-- **Admin GUI.** Originally planned as a hand-rolled maud + Pico + Datastar SPA on `authz-worker`. Replaced with deploying [d1-manager](https://github.com/neverinfamous/d1-manager) as a sibling Worker (gated by Cloudflare Access / GitHub OAuth). See `Phase 3` in [CLAUDE.md](CLAUDE.md). Currently unspun (click-ops on the operator side).
+- **Admin GUI.** Originally planned as a hand-rolled maud + Pico + Datastar SPA on `authz-worker`. Then planned as a deploy of [d1-manager](https://github.com/neverinfamous/d1-manager) gated behind CF Access / GitHub OAuth. **Now moved out of this repo entirely** — d1-manager is account-level ops infra (one deploy, one account-scoped API token, admins every D1 on the account), so it belongs in a separate ops repo or a one-off manual deploy. Until then, ops happen via `wrangler d1 execute`.
 - **Loading authorization policies from D1.** `/check` accepts the DSL inline. Storing/retrieving from `authz_authorization_policy` is Phase 4 work.
 - **`/snapshot/:user_type/:user_id`** — the bulk permission map for downstream consumer caching. Phase 5.
 - **AuthZEN endpoints.** Not addressed here.

@@ -73,7 +73,7 @@ Fresh session, just opened the repo? Do this in order:
 | **1** | ✅ done | Worker compiles for wasm32, deploys to CF, `/health` returns 200. Engine wired to **in-memory/stub store**. | `mise run worker:health:remote` → `{"ok": true}` |
 | **2** | ✅ done | Replace stub with **D1-backed `TupleReader`/`TupleWriter`**, schema ported from pgauthz, smoke-test round-trips a tuple. | `/debug/tuple` POST→GET→DELETE round-trips against deployed D1. |
 | **3 Part A** | ✅ done | `POST /check` runs the engine over D1 tuples — load-bearing for downstream consumers. | `mise run validate:simple-direct` → 4/4 PASS against deployed Worker. |
-| **3 Part B** | ⏳ deferred | Deploy [d1-manager](https://github.com/neverinfamous/d1-manager) as `authz-admin` (gated by CF Access / GitHub OAuth). | Browser: GitHub login → see `authz-store` admin. |
+| **3 Part B** | ❌ moved out | d1-manager is account-level ops infra (admins every D1 on the account, account-scoped API token), not authz-core's concern. Deploy from a separate ops repo or one-off. See Phase 3 Part B section for the conclusion. | n/a — no longer in this repo's scope. |
 | **4 v1** | ✅ done | **Biz-model validation v1** — load remy-sport-biz CSVs as DSL (EVENT + PLATFORM types), seed tuples, run hand-crafted fixtures. | `mise run validate:biz` → 6/7 PASS, single failure is the predicted CAMP/MANAGE_DIVISIONS gap. |
 | **4 v2** | ⌛ next | Extend biz validation to **TEAM, PLAYER, ORG**, GUARDIAN logic, temporal `TEAM_PLAYER` expiry, full Phase-4 fixture table. | All cases from CLAUDE.md's Phase 4 fixture table covered (15+ assertions). |
 | **5** | ⌛ later | **Consumer integration** — `/check` and `/snapshot/:user_type/:user_id` HTTP endpoints, hooked from remy-sport's Hono Worker, with the React SPA gating UI off the snapshot. | React app at `remy-sport-design.pages.dev` correctly hides/shows buttons based on logged-in user's snapshot from `authz-worker`. |
@@ -381,29 +381,33 @@ Two components:
 
 #### Part B — deploy `authz-admin` (d1-manager)
 
-Following d1-manager's README deployment guide:
+> **Plan changed 2026-04-30 (after attempting it).** d1-manager turned out to be more
+> tangled than the README implied — its `wrangler.toml` ships with `[[r2_buckets]]`,
+> `[[durable_objects.bindings]]`, `[ai]`, a `[triggers] crons`, and a `[[routes]]` block
+> pointing at the upstream author's domain. Configuring all that in this repo via mise
+> tasks means a dependency on internals that drift between releases — exactly the
+> "fork without forking" problem.
+>
+> **More importantly**, d1-manager is by-design **account-level ops infra**: its API
+> token is account-scoped and it admins **every** D1 on the account, not just
+> `authz-store`. Coupling its deploy to `authz-core` would be a category mistake — it
+> belongs in a separate ops repo (e.g. `cf-ops`) or a one-off manual deploy from the
+> operator's home dir.
 
-1. **Keep d1-manager out of this repo.** Clone-on-demand into `external/authz-admin/`
-   (gitignored), pinned to a release tag via a mise task. No submodule, no fork unless
-   we need to patch — minimise the footprint here.
-2. Create the d1-manager metadata D1: `wrangler d1 create authz-admin-metadata`.
-   Apply `worker/schema.sql` from upstream.
-3. Edit upstream's `wrangler.toml`:
-   - Rename `name = "authz-admin"` (matches our `authz-` convention).
-   - Set the metadata D1 binding's `database_id`.
-   - **Add a second `[[d1_databases]]` binding pointing at `authz-store`** (this is
-     the DB it will administer).
-4. Set up Cloudflare Access (Zero Trust dashboard):
-   - GitHub OAuth as the IdP.
-   - Access Application gating `authz-admin.gedw99.workers.dev`.
-   - Copy the `POLICY_AUD` audience tag.
-5. Generate a CF API token with `Account → D1 → Edit`. Set secrets via wrangler:
-   `ACCOUNT_ID`, `API_KEY`, `TEAM_DOMAIN` (https://-prefixed), `POLICY_AUD`.
-6. `npm run build && wrangler deploy` (in d1-manager's directory).
-7. Visit the deployed URL — GitHub login → see `authz-store` admin.
+**This repo does not deploy d1-manager. Treat it as a separate concern.**
 
-Add mise tasks for the d1-manager lifecycle (`cf:admin:deploy`, `cf:admin:secrets:set`,
-etc.) so we don't drop into bare `wrangler` commands.
+When you do want it (operator-side, not engine-side):
+1. `git clone https://github.com/neverinfamous/d1-manager` somewhere outside this repo.
+2. Pin to a release tag.
+3. Edit its `wrangler.toml` for your account: rename to `authz-admin` (or whatever),
+   replace the custom-domain `[[routes]]` with `workers_dev = true`, set your metadata
+   D1's id, leave R2/DO/AI/cron alone (or strip them — your call).
+4. Cloudflare Zero Trust: set up GitHub OAuth + Access App gating the deployed URL.
+5. `wrangler secret put` the four secrets, `npm run build && wrangler deploy`.
+6. From then on it admins every D1 on the account, including this project's `authz-store`.
+
+Until that happens, ops on `authz-store` go through `mise run cf:d1:exec:{local,remote}`
+or `wrangler d1 execute` directly. No GUI, but no coupling either.
 
 #### Stop conditions
 
