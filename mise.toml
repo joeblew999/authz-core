@@ -7,13 +7,10 @@ yq                   = "latest"
 "cargo:worker-build" = "0.8.1"
 
 [env]
-CF_WORKER_NAME   = "authz-worker"
-CF_SUBDOMAIN     = "gedw99"
-CF_DEPLOY_URL    = "https://authz-worker.gedw99.workers.dev"
-DEV_URL          = "http://localhost:8787"
-GITHUB_REPO_URL  = "https://github.com/joeblew999/authz-core"
-CF_D1_NAME       = "authz-store"
-PGAUTHZ_INIT_URL = "https://raw.githubusercontent.com/zvectorlabs/pgauthz/main/crates/pgauthz/sql/init.sql"
+# Operator-specific values (CF subdomain, D1 names, deploy URLs) live in
+# config/production.env (gitignored). Schema in config/template.env.
+# See joeblew999/auth-service for the full pattern.
+_.file = "config/production.env"
 
 # ── Setup ────────────────────────────────────────────────────────────────────
 
@@ -128,22 +125,25 @@ run         = "cd crates/authz-worker && wrangler versions list"
 description = "Roll back to the previous version"
 run         = "cd crates/authz-worker && wrangler rollback"
 
-# ── Fixture validation against deployed Worker ───────────────────────────────
+# ── prove:* — fixture-driven proofs against deployed Worker ──────────────────
+#
+# Same shape as joeblew999/auth-service `prove:sso-rbac` — run the deployed
+# system through known-good assertions, fail if any miss.
 
-[tasks."validate:fixture"]
-description = "Run one vendored pgauthz matrix YAML against the deployed /check. Usage: mise run validate:fixture vendor/pgauthz/matrix/simple_direct.yaml"
+[tasks."prove:fixture"]
+description = "Run one vendored pgauthz matrix YAML against the deployed /check. Usage: mise run prove:fixture vendor/pgauthz/matrix/simple_direct.yaml"
 run         = "scripts/validate-fixture.sh"
 
-[tasks."validate:simple-direct"]
+[tasks."prove:simple-direct"]
 description = "Shortcut: run vendor/pgauthz/matrix/simple_direct.yaml — the smoke baseline (4 assertions)."
 run         = "scripts/validate-fixture.sh vendor/pgauthz/matrix/simple_direct.yaml"
 
-[tasks."validate:biz"]
+[tasks."prove:biz"]
 description = "Phase 4 — run remy-sport-biz validation against deployed /check. Surfaces engine gaps as actionable notes for reshaping remy."
 depends     = ["biz:upstream:fetch"]
 run         = "node scripts/biz-validate.mjs"
 
-[tasks."validate:all"]
+[tasks."prove:all"]
 description = "Run every vendored matrix YAML — expect failures on advanced features until Phase 4."
 run         = '''
 set -e

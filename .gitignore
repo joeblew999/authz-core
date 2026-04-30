@@ -30,6 +30,13 @@ vendor/remy-sport-biz/
 *.pem
 *.key
 
+# Operator config — keep real values out of git. Schema in config/template.env.
+config/*.env
+!config/template.env
+
+# fnox local state — secrets manager.
+.fnox/
+
 # Test and benchmark output
 /flamegraph.svg
 /perf.data

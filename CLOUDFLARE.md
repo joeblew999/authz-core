@@ -27,8 +27,8 @@ for anyone reviewing it.
 - ✅ **D1 storage adapter** (`crates/authz-worker/src/d1/`) implements `TupleReader` and `TupleWriter`. Every D1 call wrapped in `worker::send::SendFuture` to satisfy the `Send + Sync` trait bounds; `unsafe impl Send/Sync` on the store struct is sound because Workers isolates are single-threaded.
 - ✅ **Engine over D1.** `POST /check` accepts a DSL model + check params, builds `CoreResolver::new(D1TupleStore, StaticPolicyProvider)`, calls `resolve_check`, returns `Allowed`/`Denied`/`ConditionRequired` as JSON.
 - ✅ **Cross-language service binding.** Verified via the TS consumer Worker — `env.AUTHZ.fetch(req)` from a JS/TS Worker into our Rust Worker is wire-compatible HTTP, no network hop.
-- ✅ **Fixture-driven validation** (`scripts/validate-fixture.sh` + `mise run validate:all`). Reads any pgauthz matrix YAML, drives setup tuples + assertions against the deployed `/check`. Currently **13 of 17 fixtures clean.**
-- ✅ **Biz-model validation v1** (`scripts/biz-validate.mjs` + `mise run validate:biz`). Reads remy-sport-biz seed CSVs, generates the DSL inline, derives tuples, runs hand-crafted assertions. **6 of 7 fixtures pass** for the EVENT + PLATFORM subset. The one failure exposed an actionable design choice for the consumer (split `EVENT` into typed variants instead of conditioning by subtype) — see "Findings" below.
+- ✅ **Fixture-driven validation** (`scripts/validate-fixture.sh` + `mise run prove:all`). Reads any pgauthz matrix YAML, drives setup tuples + assertions against the deployed `/check`. Currently **13 of 17 fixtures clean.**
+- ✅ **Biz-model validation v1** (`scripts/biz-validate.mjs` + `mise run prove:biz`). Reads remy-sport-biz seed CSVs, generates the DSL inline, derives tuples, runs hand-crafted assertions. **6 of 7 fixtures pass** for the EVENT + PLATFORM subset. The one failure exposed an actionable design choice for the consumer (split `EVENT` into typed variants instead of conditioning by subtype) — see "Findings" below.
 
 ## What doesn't work yet
 
