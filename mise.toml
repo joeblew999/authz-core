@@ -169,23 +169,13 @@ run         = "cd crates/authz-worker && wrangler tail"
 description = "Open the Workers Observability log explorer in the browser"
 run         = "open 'https://dash.cloudflare.com/?to=/:account/workers/services/view/authz-worker/production/observability'"
 
-# ── cf: consumer test (proves cross-language service binding) ────────────────
-
-[tasks."cf:consumer:deploy"]
-description = "Deploy examples/authz-consumer-test (TS Worker that calls authz-worker via service binding)"
-run         = "cd examples/authz-consumer-test && wrangler deploy"
-
-[tasks."cf:consumer:probe"]
-description = "Probe the deployed consumer: /probe/health and /probe/tuple"
-run = '''
-set -e
-url="https://authz-consumer-test.{{env.CF_SUBDOMAIN}}.workers.dev"
-echo "== /probe/health (via service binding) =="
-curl -sf "$url/probe/health" | jq .
-echo
-echo "== /probe/tuple (POST/GET/DELETE round-trip via service binding) =="
-curl -sf "$url/probe/tuple" | jq .
-'''
+# ── cf: consumer test (kept as reference; the Worker has been deleted) ──────
+#
+# examples/authz-consumer-test/ is a TS Worker that proved cross-language
+# service binding (TS -> Rust authz-worker). It was deployed once, verified,
+# and the deployed Worker has since been deleted (the proof now lives in
+# CLAUDE.md / CLOUDFLARE.md). Source kept as a reference for anyone wiring
+# up an integration. To redeploy: wrangler deploy from examples/authz-consumer-test/.
 
 # ── cf: D1 ───────────────────────────────────────────────────────────────────
 
