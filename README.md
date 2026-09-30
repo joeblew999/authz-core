@@ -18,6 +18,12 @@ A [Zanzibar](https://research.google/pubs/zanzibar-googles-consistent-global-aut
 
 No database or transport dependencies are included — those live in downstream implementations (e.g. [`pgauthz`](https://github.com/zvectorlabs/pgauthz)).
 
+> **Companion repo:** authorization (this repo, Zanzibar-style) pairs with
+> [`auth-service`](https://github.com/joeblew999/auth-service) (Better Auth
+> on Cloudflare Workers, identity + sessions). They are designed to ship
+> together for any Cloudflare project — AuthN there, AuthZ here. Likely to
+> be merged into a single repo in the future; kept separate for now.
+
 ---
 
 ## Quick start
